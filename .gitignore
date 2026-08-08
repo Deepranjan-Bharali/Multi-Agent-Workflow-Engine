@@ -1,0 +1,24 @@
+# Environment Variables (CRITICAL)
+.env
+.env.local
+.env.*
+
+# Python
+venv/
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Node.js / Next.js (Frontend)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Go (Gateway)
+gateway/gateway.exe
+gateway/gateway
+
+# OS Files
+.DS_Store
+Thumbs.db
