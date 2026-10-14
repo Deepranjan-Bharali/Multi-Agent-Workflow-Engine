@@ -1,24 +1,24 @@
-# Environment Variables (CRITICAL)
+# Secrets and local environment
 .env
-.env.local
 .env.*
+!.env.example
 
 # Python
-venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.venv/
+venv/
 db.sqlite3
+agentic_flow_tasks.db
+agentic_flow_tasks.db-shm
+agentic_flow_tasks.db-wal
+agentgraph.db
+agentgraph.db-shm
+agentgraph.db-wal
 
-# Node.js / Next.js (Frontend)
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/build/
+# Gradio
+.gradio/
 
-# Go (Gateway)
-gateway/gateway.exe
-gateway/gateway
-
-# OS Files
+# OS files
 .DS_Store
 Thumbs.db

@@ -1,52 +1,35 @@
-# app/core/memory.py
+"""Optional PostgreSQL checkpointer for LangGraph conversation state."""
 import os
-from psycopg_pool import AsyncConnectionPool
+
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg_pool import AsyncConnectionPool
 
-# We will initialize this pool from the FastAPI lifespan event
-pool = None
+pool: AsyncConnectionPool | None = None
 
-async def get_async_pool():
+
+def checkpointing_enabled() -> bool:
+    url = os.getenv("LANGGRAPH_DATABASE_URL") or os.getenv("DATABASE_URL", "")
+    return url.startswith(("postgres://", "postgresql://", "postgresql+psycopg://"))
+
+
+async def get_async_pool() -> AsyncConnectionPool:
     global pool
     if pool is None:
-        db_uri = os.getenv("DATABASE_URL")
-        # max_size=20 ensures we can handle concurrent agent runs
+        db_uri = os.getenv("LANGGRAPH_DATABASE_URL") or os.getenv("DATABASE_URL")
+        if not checkpointing_enabled() or not db_uri:
+            raise RuntimeError("A PostgreSQL LANGGRAPH_DATABASE_URL is required to enable checkpointing")
+        db_uri = db_uri.replace("postgresql+psycopg://", "postgresql://", 1)
         pool = AsyncConnectionPool(conninfo=db_uri, max_size=20, kwargs={"autocommit": True})
         await pool.open()
     return pool
 
-async def get_checkpointer():
-    connection_pool = await get_async_pool()
-    return AsyncPostgresSaver(connection_pool)
 
-async def log_workflow_start(thread_id: str, project_id: int, prompt: str) -> int:
-    """Inserts a 'running' record into Django's WorkflowRunLog table and returns the row ID."""
-    pool = await get_async_pool()
-    async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            # Django automatically names tables as _
-            await cur.execute(
-                """
-                INSERT INTO workflows_workflowrunlog 
-                (thread_id, project_id, prompt, status, created_at) 
-                VALUES (%s, %s, %s, 'running', NOW()) 
-                RETURNING id;
-                """,
-                (thread_id, project_id, prompt)
-            )
-            log_id = (await cur.fetchone())[0]
-            return log_id
+async def get_checkpointer() -> AsyncPostgresSaver:
+    return AsyncPostgresSaver(await get_async_pool())
 
-async def log_workflow_complete(log_id: int, final_answer: str, status: str = 'success'):
-    """Updates the log record when the workflow finishes or fails."""
-    pool = await get_async_pool()
-    async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                """
-                UPDATE workflows_workflowrunlog 
-                SET final_answer = %s, status = %s, completed_at = NOW() 
-                WHERE id = %s;
-                """,
-                (final_answer, status, log_id)
-            )
+
+async def close_resources() -> None:
+    global pool
+    if pool is not None:
+        await pool.close()
+        pool = None
